@@ -1,4 +1,5 @@
 #include "libcpu.h"
+#include "llvm/IR/Constants.h"
 
 /* emitter functions */
 Value *arch_get_reg(cpu_t *cpu, uint32_t index, uint32_t bits, BasicBlock *bb);

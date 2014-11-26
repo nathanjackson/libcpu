@@ -6,6 +6,7 @@
  */
 
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 
 #include "libcpu.h"

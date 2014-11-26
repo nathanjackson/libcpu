@@ -8,7 +8,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-#include "llvm/Analysis/Verifier.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/ExecutionEngine/JIT.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/IR/Module.h"
@@ -296,7 +296,7 @@ cpu_translate_function(cpu_t *cpu)
 	BranchInst::Create(bb_start, label_entry);
 
 	/* make sure everything is OK */
-	verifyFunction(*cpu->cur_func, PrintMessageAction);
+	verifyFunction(*cpu->cur_func, nullptr);
 
 	if (cpu->flags_debug & CPU_DEBUG_PRINT_IR)
 		cpu->mod->dump();
