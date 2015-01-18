@@ -53,6 +53,14 @@ IF(NOT PYTHONINTERP_FOUND)
 	message(FATAL_ERROR "Could not find Python, but Python 2.6 or later is required")
 ENDIF()
 
+#
+# Find ZLIB.
+#
+INCLUDE(FindZLIB)
+IF(NOT ZLIB_FOUND)
+	message(FATAL_ERROR "Could not find zlib.")
+ENDIF()
+
 
 SET(LIBCPU_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libcpu)
 
