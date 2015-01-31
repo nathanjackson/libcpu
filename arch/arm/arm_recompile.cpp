@@ -3,6 +3,9 @@
 #include "arm_internal.h"
 #include "tag.h"
 
+#include <typeinfo>
+#include <iostream>
+
 using namespace llvm;
 
 extern Value* ptr_PC;
@@ -190,6 +193,28 @@ printf("%s:%d pc=%llx\n", __func__, __LINE__, pc);
 	switch ((instr >> 26) & 3) { /* bits 26 and 27 */
 		case 0:
 			switch(opcode) {
+				case 0: /* AND */
+					{
+						Value *op1 = R(RN);
+						Value *op2 = OPERAND;
+						Value *res = AND(op1,op2);
+						LET(RD, res);
+					}
+					break;
+				case 2: /* SUB */
+					{
+						Value *op1 = R(RN);
+						Value *op2 = OPERAND;
+						Value *res = SUB(op1,op2);
+						LET(RD, res);
+						if (S) {
+							SET_NZ(res);
+							LET1(ptr_C, COMPUTE_CARRY(op1, op2, res));
+							BAD;
+							// TODO overflow.
+						}
+					}
+					break;
 				case 4: /* ADD */
 					{
 						Value *op1 = R(RN);
@@ -222,8 +247,27 @@ printf("%s:%d pc=%llx\n", __func__, __LINE__, pc);
 					BAD;
 			}
 			break;
-		case 1:
+		case 1: { /* Single Data Transfer (LDR, STR) */
+			bool byte_xfer = BIT(22);
+			int offset = BIT(23) ? BITS(0,11) : -1 * BITS(0,11);
+			if (BIT(20)) { /* LDR */
+				if (byte_xfer) {
+				}
+				else {
+					LOAD32(RD, ADD(R(RN), CONST(offset)));
+					break;
+				}
+			}
+			else { /* STR */
+				if (byte_xfer) {
+				}
+				else {
+					STORE32(CONST(RD), ADD(R(RN), CONST(offset)));
+					break;
+				}
+			}
 			BAD;
+		}
 		case 2:
 			if (BIT(25)) {
 				if (BIT(24))
