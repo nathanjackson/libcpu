@@ -40,14 +40,17 @@ static Value* ptr_I;
 int arch_arm_tag_instr(cpu_t *cpu, addr_t pc, tag_t *tag, addr_t *new_pc, addr_t *next_pc) {
 	uint32_t instr = *(uint32_t*)&cpu->RAM[pc];
 
-	if (instr == 0xE1A0F00E) /* MOV r15, r0, r14 */
+	if (instr == 0xE1A0F00E) {/* MOV r15, r0, r14 */
 		*tag = TAG_RET;
-	else if (BITS(24,27) == 10) { /* branch */
+		return 0;
+	} else if (BITS(24,27) == 10) { /* branch */
 		*new_pc = ARM_BRANCH_TARGET;
 		*tag = TAG_BRANCH;
 	} else if (BITS(24,27) == 11) { /* branch and link */
 		*new_pc = ARM_BRANCH_TARGET;
 		*tag = TAG_CALL;
+	} else if (BITS(20,27) == 18 && BIT(4)) { /* branch exchange */
+		*tag = TAG_RET; 
 	} else 
 		*tag = TAG_CONTINUE;
 
@@ -175,7 +178,7 @@ setsub(cpu_t *cpu, Value *op1, Value *op2, BasicBlock *bb)
 #define COMPUTE_CARRY(src1, src2, result) \
 	(AND(ICMP_NE(src2, CONST(0)), ICMP_ULT(result, src1)))
 
-#define LINK LET32(14, CONST((uint64_t)(sint64_t)(sint32_t)pc+8))
+#define LINK LET32(14, CONST((uint64_t)(sint64_t)(sint32_t)pc+4))
 
 int arch_arm_recompile_instr(cpu_t *cpu, addr_t pc, BasicBlock *bb) {
 printf("%s:%d pc=%llx\n", __func__, __LINE__, pc);
@@ -244,34 +247,64 @@ printf("%s:%d pc=%llx\n", __func__, __LINE__, pc);
 					LET(RD, OPERAND);
 					break;
 				default:
+					if (BITS(20,27) == 18 && BIT(4)) {
+						new StoreInst(R(BITS(0,3)), cpu->ptr_PC, bb);
+						break;
+					}
 					BAD;
 			}
 			break;
 		case 1: { /* Single Data Transfer (LDR, STR) */
-			bool byte_xfer = BIT(22);
-			int offset = BIT(23) ? BITS(0,11) : -1 * BITS(0,11);
-			if (BIT(20)) { /* LDR */
-				if (byte_xfer) {
+			uint32_t offset = BITS(0, 11);
+
+			if (BIT(20)) { /* Load */
+				if (BIT(22)) { /* Load byte */
+					BAD;
+				} else { /* Load word */
+					if (BITS(16, 19) == 15) { /* Handle PC, special case. */
+						if (BIT(23)) {
+							uint32_t tmp = pc + offset + 8;
+							LOAD32(BITS(12, 15), CONST(tmp));
+							LET(BITS(12, 15), SWAP32(R(BITS(12, 15))));
+						} else
+							LOAD32(BITS(12, 15), CONST(pc - offset + 8));
+					} else {
+						if (BIT(23))
+							LOAD32(BITS(12, 15), ADD(R32(BITS(16, 19)), CONST(offset)));
+						else
+							LOAD32(BITS(12, 15), SUB(R32(BITS(16, 19)), CONST(offset)));
+					}
 				}
-				else {
-					LOAD32(RD, ADD(R(RN), CONST(offset)));
-					break;
+			} else { /* Store */
+				if (BIT(22)) { /* Store byte */
+					BAD;
+				} else { /* Store word */
+					if (BITS(16, 19) == 15) { /* Handle PC, special case. */
+						BAD;
+					} else {
+						if (BIT(23))
+							STORE32(R(BITS(12, 15)), ADD(R(BITS(16, 19)), CONST(offset)));
+						else
+							STORE32(R(BITS(12, 15)), SUB(R(BITS(16, 19)), CONST(offset)));
+					}
 				}
 			}
-			else { /* STR */
-				if (byte_xfer) {
-				}
-				else {
-					STORE32(CONST(RD), ADD(R(RN), CONST(offset)));
-					break;
-				}
+
+			if (BIT(21) && BIT(23)) {
+				LET32(BITS(16, 19), ADD(R(BITS(16, 19)), CONST(offset)));
+				printf("W bit set.\n");
+			} else if (BIT(21) && !BIT(23)) {
+				LET32(BITS(16, 19), SUB(R(BITS(16, 19)), CONST(offset)));
+				printf("W bit set.\n");
 			}
-			BAD;
+
+			break;
 		}
 		case 2:
 			if (BIT(25)) {
-				if (BIT(24))
+				if (BIT(24)) {
 					LINK;
+				}
 				break;
 			} else
 				BAD;
